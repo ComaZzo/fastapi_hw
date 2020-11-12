@@ -1,9 +1,14 @@
+mocking/
+.idea
+/test.py
+/app.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 
-mocking/
+
 # C extensions
 *.so
 
