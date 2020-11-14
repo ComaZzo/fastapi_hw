@@ -10,7 +10,18 @@ con = sqlite3.connect("../action_user.db")
 cur = con.cursor()
 
 
-@app.get("/api/users") # ?unique={unique_bool}&date_to={date_to}&date_from={date_from}")
+async def users_query_exe(unique_string, date_to, date_from):
+    cur.execute(f"""SELECT {unique_string} date,
+                    ROW_NUMBER() OVER (PARTITION BY date) AS count 
+                    FROM actions
+                    JOIN users 
+                    ON actions.userid = users.userid
+                    WHERE strftime('%s', date) < strftime('%s','{date_to}') 
+                    AND  strftime('%s', date) >  strftime('%s','{date_from}');""")
+    return cur.fetchall()
+
+
+@app.get("/api/users") # ?unique={bool}&date_to={str}&date_from={str}")
 async def users(unique: bool = False,
                 date_to: str = str(datetime.datetime.today().date()),
                 date_from: str = "2020-01-01"):
@@ -19,28 +30,25 @@ async def users(unique: bool = False,
     if len(re.findall(reg_exp, date_to)) == 1 and len(re.findall(reg_exp, date_from)) == 1:
         unique_string = ""
         if unique: unique_string = "DISTINCT"
-        cur.execute(f"""SELECT {unique_string} date,
-                        ROW_NUMBER() OVER (PARTITION BY date) AS count 
-                        FROM actions
-                        JOIN users 
-                        ON actions.userid = users.userid
-                        WHERE strftime('%s', date) < strftime('%s','{date_to}') 
-                        AND  strftime('%s', date) >  strftime('%s','{date_from}');""")
-        response_list = cur.fetchall()
+        response_list = await users_query_exe(unique_string, date_to, date_from)
         response_dict = {"data": {}}
         for i in range(len(response_list)):
             response_dict["data"][i] = {"date": response_list[i][0], "count": response_list[i][1]}
         return response_dict
-    return
+    return {"Error": "Invalid date"}
 
 
-@app.get("/api/actions")
-async def actions():
+async def actions_query_exe():
     cur.execute("""SELECT date, 
                    ROW_NUMBER() OVER (PARTITION BY date) AS count,
                    action
                    FROM actions;""")
-    response_list = cur.fetchall()
+    return cur.fetchall()
+
+
+@app.get("/api/actions")
+async def actions():
+    response_list = await actions_query_exe()
     response_dict = {"data": {}}
     for i in range(len(response_list)):
         response_dict["data"][i] = {"date": response_list[i][0],
@@ -49,13 +57,17 @@ async def actions():
     return response_dict
 
 
-@app.get("/api/usage")
-async def usage():
+async def usage_query_exe():
     cur.execute("""SELECT date,
                     ROW_NUMBER() OVER (PARTITION BY date) AS count, 
                     action 
                     FROM actions;""")
-    query_result = cur.fetchall()
+    return cur.fetchall()
+
+
+@app.get("/api/usage")
+async def usage():
+    query_result = await usage_query_exe()
 
     # group by date
     response_list = []
